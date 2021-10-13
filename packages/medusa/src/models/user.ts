@@ -11,6 +11,10 @@ import {
 import { ulid } from "ulid"
 import { resolveDbType, DbAwareColumn } from "../utils/db-aware-column"
 
+export type Actionable = string & {
+  _opaqueType: "ActionableString"
+}
+
 @Entity()
 export class User {
   @PrimaryColumn()
@@ -18,10 +22,10 @@ export class User {
 
   @Index({ unique: true })
   @Column()
-  email: string
+  email: ActionableString<"Createable", "Updateable"> // <- this means, that it can be updated and created
 
   @Column({ nullable: true })
-  first_name: string
+  email: ActionableString<"Updateable"> // <- this means, that it can be updated and created
 
   @Column({ nullable: true })
   last_name: string
