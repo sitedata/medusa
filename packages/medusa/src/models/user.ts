@@ -7,34 +7,39 @@ import {
   Index,
   Column,
   PrimaryColumn,
+  ColumnType,
 } from "typeorm"
 import { ulid } from "ulid"
 import { resolveDbType, DbAwareColumn } from "../utils/db-aware-column"
 
-export type Actionable = string & {
-  _opaqueType: "ActionableString"
+export type ActionableProps = string | number | Date | ColumnType
+
+export type Updateable = ActionableProps & {
+  _opaqueType: "Updateable"
 }
+export type Createable = ActionableProps & {
+  _opaqueType: "Createable"
+}
+
+export type Actionable<T extends ActionableProps> = T
 
 @Entity()
 export class User {
   @PrimaryColumn()
-  id: string
+  id: Actionable<Createable>
 
   @Index({ unique: true })
   @Column()
-  email: ActionableString<"Createable", "Updateable"> // <- this means, that it can be updated and created
+  email: Actionable<string & Createable & Updateable>
 
   @Column({ nullable: true })
-  email: ActionableString<"Updateable"> // <- this means, that it can be updated and created
-
-  @Column({ nullable: true })
-  last_name: string
+  last_name: Actionable<string & Createable & Updateable>
 
   @Column({ nullable: true, select: false })
-  password_hash: string
+  password_hash: Actionable<string & Createable & Updateable>
 
   @Column({ nullable: true })
-  api_token: string
+  api_token: Actionable<string & Createable & Updateable>
 
   @CreateDateColumn({ type: resolveDbType("timestamptz") })
   created_at: Date

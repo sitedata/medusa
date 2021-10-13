@@ -179,7 +179,7 @@ class UserService extends BaseService {
    * @return {Promise} the result of create
    */
   async create(
-    user: PartialEntity<User, Actionable<Createable>>,
+    user: PartialEntity<User, Createable>,
     password: string
   ): Promise<User> {
     return this.atomicPhase_(async (manager: EntityManager) => {
@@ -207,12 +207,12 @@ class UserService extends BaseService {
    * @param {object} user - the user to create
    * @return {Promise} the result of create
    */
-  async update(userId: string, update: Any): Promise<User> {
+  async update(userId: string, update: any): Promise<User> {
     return this.atomicPhase_(async (manager: EntityManager) => {
       const userRepo = manager.getCustomRepository(this.userRepository_)
       const validatedId = this.validateId_(userId)
 
-      const user = await this.retrieve(validatedId)
+      const user = await this.retrieve(validatedId) as any
 
       const { email, password_hash, metadata, ...rest } = update
 
@@ -235,7 +235,7 @@ class UserService extends BaseService {
       }
 
       for (const [key, value] of Object.entries(rest)) {
-        user[key as keyof userDtos.UpdateUser] = value
+        user[key] = value
       }
 
       return userRepo.save(user)
