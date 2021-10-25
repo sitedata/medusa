@@ -12,34 +12,23 @@ import {
 import { ulid } from "ulid"
 import { resolveDbType, DbAwareColumn } from "../utils/db-aware-column"
 
-export type ActionableProps = string | number | Date | ColumnType
-
-export type Updateable = ActionableProps & {
-  _opaqueType: "Updateable"
-}
-export type Createable = ActionableProps & {
-  _opaqueType: "Createable"
-}
-
-export type Actionable<T extends ActionableProps> = T
-
 @Entity()
 export class User {
   @PrimaryColumn()
-  id: Actionable<Createable>
+  id: string
 
   @Index({ unique: true })
   @Column()
-  email: Actionable<string & Createable & Updateable>
+  email: string
 
   @Column({ nullable: true })
-  last_name: Actionable<string & Createable & Updateable>
+  last_name: string
 
   @Column({ nullable: true, select: false })
-  password_hash: Actionable<string & Createable & Updateable>
+  password_hash: string
 
   @Column({ nullable: true })
-  api_token: Actionable<string & Createable & Updateable>
+  api_token: string
 
   @CreateDateColumn({ type: resolveDbType("timestamptz") })
   created_at: Date

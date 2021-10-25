@@ -3,33 +3,17 @@ import Scrypt from "scrypt-kdf"
 import jwt from "jsonwebtoken"
 import { Validator, MedusaError } from "medusa-core-utils"
 import { BaseService } from "medusa-interfaces"
-import { UserRepository } from "../repositories/user"
-import EventBusService from "./event-bus"
-import { EntityManager } from "typeorm"
-import { User } from ".."
-import { PartialEntity, SubType } from "../utils/decorate-property"
-import { Actionable, ActionableString, Createable } from "../models/user"
-
-interface UserServiceProps {
-  userRepository: typeof UserRepository
-  eventBusService: EventBusService
-  manager: EntityManager
-}
 
 /**
  * Provides layer to manipulate users.
- * @implements BaseService
+ * @extends BaseService
  */
 class UserService extends BaseService {
   static Events = {
     PASSWORD_RESET: "user.password_reset",
   }
 
-  private userRepository_: typeof UserRepository
-  private eventBus_: EventBusService
-  private manager_: EntityManager
-
-  constructor({ userRepository, eventBusService, manager }: UserServiceProps) {
+  constructor({ userRepository, eventBusService, manager }) {
     super()
 
     /** @private @const {UserRepository} */
@@ -42,7 +26,7 @@ class UserService extends BaseService {
     this.manager_ = manager
   }
 
-  withTransaction(transactionManager: EntityManager): UserService {
+  withTransaction(transactionManager) {
     if (!transactionManager) {
       return this
     }
@@ -63,7 +47,7 @@ class UserService extends BaseService {
    * @param {string} email - email to validate
    * @return {string} the validated email
    */
-  validateEmail_(email: string): string {
+  validateEmail_(email) {
     const schema = Validator.string()
       .email()
       .required()
@@ -82,10 +66,8 @@ class UserService extends BaseService {
    * @param {Object} selector - the query object for find
    * @return {Promise} the result of the find operation
    */
-  async list(selector: object): Promise<User[]> {
-    const userRepo = this.manager_.getCustomRepository<UserRepository>(
-      this.userRepository_
-    )
+  async list(selector) {
+    const userRepo = this.manager_.getCustomRepository(this.userRepository_)
     return userRepo.find({ where: selector })
   }
 
@@ -93,9 +75,10 @@ class UserService extends BaseService {
    * Gets a user by id.
    * Throws in case of DB Error and if user was not found.
    * @param {string} userId - the id of the user to get.
+   * @param {Object} config - query configs
    * @return {Promise<User>} the user document.
    */
-  async retrieve(userId: string, config: object = {}): Promise<User> {
+  async retrieve(userId, config = {}) {
     const userRepo = this.manager_.getCustomRepository(this.userRepository_)
 
     const validatedId = this.validateId_(userId)
@@ -117,12 +100,10 @@ class UserService extends BaseService {
    * Gets a user by api token.
    * Throws in case of DB Error and if user was not found.
    * @param {string} apiToken - the token of the user to get.
+   * @param {string[]} relations - relations to include with the user
    * @return {Promise<User>} the user document.
    */
-  async retrieveByApiToken(
-    apiToken: string,
-    relations: string[] = []
-  ): Promise<User> {
+  async retrieveByApiToken(apiToken, relations = []) {
     const userRepo = this.manager_.getCustomRepository(this.userRepository_)
 
     const user = await userRepo.findOne({
@@ -144,9 +125,10 @@ class UserService extends BaseService {
    * Gets a user by email.
    * Throws in case of DB Error and if user was not found.
    * @param {string} email - the email of the user to get.
+   * @param {Object} config - query config
    * @return {Promise<User>} the user document.
    */
-  async retrieveByEmail(email: string, config: object = {}): Promise<User> {
+  async retrieveByEmail(email, config = {}) {
     const userRepo = this.manager_.getCustomRepository(this.userRepository_)
 
     const query = this.buildQuery_({ email: email.toLowerCase() }, config)
@@ -165,9 +147,9 @@ class UserService extends BaseService {
   /**
    * Hashes a password
    * @param {string} password - the value to hash
-   * @return hashed password
+   * @return {string} hashed password
    */
-  async hashPassword_(password: string): Promise<string> {
+  async hashPassword_(password) {
     const buf = await Scrypt.kdf(password, { logN: 1, r: 1, p: 1 })
     return buf.toString("base64")
   }
@@ -176,17 +158,12 @@ class UserService extends BaseService {
    * Creates a user with username being validated.
    * Fails if email is not a valid format.
    * @param {object} user - the user to create
+   * @param {string} password - user's password to hash
    * @return {Promise} the result of create
    */
-  async create(
-    user: PartialEntity<User, Createable>,
-    password: string
-  ): Promise<User> {
-    return this.atomicPhase_(async (manager: EntityManager) => {
+  async create(user, password) {
+    return this.atomicPhase_(async manager => {
       const userRepo = manager.getCustomRepository(this.userRepository_)
-
-      user.api_token = "something"
-      user.
 
       const validatedEmail = this.validateEmail_(user.email)
       if (password) {
@@ -204,15 +181,16 @@ class UserService extends BaseService {
 
   /**
    * Updates a user.
-   * @param {object} user - the user to create
+   * @param {object} userId - id of the user to update
+   * @param {object} update - the values to be updated on the user
    * @return {Promise} the result of create
    */
-  async update(userId: string, update: any): Promise<User> {
-    return this.atomicPhase_(async (manager: EntityManager) => {
+  async update(userId, update) {
+    return this.atomicPhase_(async manager => {
       const userRepo = manager.getCustomRepository(this.userRepository_)
       const validatedId = this.validateId_(userId)
 
-      const user = await this.retrieve(validatedId) as any
+      const user = await this.retrieve(validatedId)
 
       const { email, password_hash, metadata, ...rest } = update
 
@@ -248,14 +226,16 @@ class UserService extends BaseService {
    *   castable as an ObjectId
    * @return {Promise} the result of the delete operation.
    */
-  async delete(userId: string): Promise<void> {
-    return this.atomicPhase_(async (manager: EntityManager) => {
+  async delete(userId) {
+    return this.atomicPhase_(async manager => {
       const userRepo = manager.getCustomRepository(this.userRepository_)
 
       // Should not fail, if user does not exist, since delete is idempotent
       const user = await userRepo.findOne({ where: { id: userId } })
 
-      if (!user) return Promise.resolve()
+      if (!user) {
+        return Promise.resolve()
+      }
 
       await userRepo.softRemove(user)
 
@@ -269,10 +249,10 @@ class UserService extends BaseService {
    * password does not work.
    * @param {string} userId - the userId to set password for
    * @param {string} password - the old password to set
-   * @returns {Promise} the result of the update operation
+   * @return {Promise} the result of the update operation
    */
-  async setPassword_(userId: string, password: string): Promise<User> {
-    return this.atomicPhase_(async (manager: EntityManager) => {
+  async setPassword_(userId, password) {
+    return this.atomicPhase_(async manager => {
       const userRepo = manager.getCustomRepository(this.userRepository_)
 
       const user = await this.retrieve(userId)
@@ -298,9 +278,9 @@ class UserService extends BaseService {
    * a long side a payload with userId and the expiry time for the token, which
    * is always 15 minutes.
    * @param {string} userId - the id of the user to reset password for
-   * @returns {string} the generated JSON web token
+   * @return {string} the generated JSON web token
    */
-  async generateResetPasswordToken(userId: string): Promise<string> {
+  async generateResetPasswordToken(userId) {
     const user = await this.retrieve(userId)
     const secret = user.password_hash
     const expiry = Math.floor(Date.now() / 1000) + 60 * 15
@@ -311,8 +291,21 @@ class UserService extends BaseService {
       email: user.email,
       token,
     })
-
     return token
+  }
+
+  /**
+   * Decorates a user.
+   * @param {User} user - the cart to decorate.
+   * @param {string[]} fields - the fields to include.
+   * @param {string[]} expandFields - fields to expand.
+   * @return {User} return the decorated user.
+   */
+  async decorate(user, fields, expandFields = []) {
+    const requiredFields = ["id", "metadata"]
+    const decorated = _.pick(user, fields.concat(requiredFields))
+    const final = await this.runDecorators_(decorated)
+    return final
   }
 }
 
