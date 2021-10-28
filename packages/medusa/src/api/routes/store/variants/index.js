@@ -3,7 +3,7 @@ import middlewares from "../../../middlewares"
 
 const route = Router()
 
-export default app => {
+export default (app) => {
   app.use("/variants", route)
 
   route.get("/", middlewares.wrap(require("./list-variants").default))
@@ -12,4 +12,4 @@ export default app => {
   return app
 }
 
-export const defaultRelations = ["prices"]
+export const defaultRelations = ["prices", "options"]

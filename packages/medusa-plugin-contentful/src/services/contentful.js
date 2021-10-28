@@ -91,7 +91,7 @@ class ContentfulService extends BaseService {
   async createImageAssets(product) {
     const environment = await this.getContentfulEnvironment_()
 
-    let assets = []
+    const assets = []
     await Promise.all(
       product.images
         .filter((image) => image.url !== product.thumbnail)
@@ -646,6 +646,92 @@ class ContentfulService extends BaseService {
     }
   }
 
+  async archiveProductVariantInContentful(variant) {
+    let variantEntity
+    try {
+      const ignore = await this.shouldIgnore_(variant.id, "contentful")
+      if (ignore) {
+        return Promise.resolve()
+      }
+
+      try {
+        variantEntity = await this.productVariantService_.retrieve(variant.id)
+      } catch (err) {
+        // ignore
+      }
+
+      if (variantEntity) {
+        return Promise.resolve()
+      }
+
+      return await this.archiveEntryWidthId(variant.id)
+    } catch (error) {
+      throw error
+    }
+  }
+
+  async archiveProductInContentful(product) {
+    let productEntity
+    try {
+      const ignore = await this.shouldIgnore_(product.id, "contentful")
+      if (ignore) {
+        return Promise.resolve()
+      }
+
+      try {
+        productEntity = await this.productService_.retrieve(product.id)
+      } catch (err) {}
+
+      if (productEntity) {
+        return Promise.resolve()
+      }
+
+      return await this.archiveEntryWidthId(product.id)
+    } catch (error) {
+      throw error
+    }
+  }
+
+  async archiveRegionInContentful(region) {
+    let regionEntity
+    try {
+      const ignore = await this.shouldIgnore_(region.id, "contentful")
+      if (ignore) {
+        return Promise.resolve()
+      }
+
+      try {
+        regionEntity = await this.regionService_.retrieve(region.id)
+      } catch (err) {}
+
+      if (regionEntity) {
+        return Promise.resolve()
+      }
+
+      return await this.archiveEntryWidthId(region.id)
+    } catch (error) {
+      throw error
+    }
+  }
+
+  async archiveEntryWidthId(id) {
+    const environment = await this.getContentfulEnvironment_()
+    // check if product exists
+    let entry = undefined
+    try {
+      entry = await environment.getEntry(id)
+    } catch (error) {
+      return Promise.resolve()
+    }
+
+    const unpublishEntry = await entry.unpublish()
+    const archivedEntry = await entry.archive()
+
+    await this.addIgnore_(id, "medusa")
+
+    return archivedEntry
+  }
+
   async sendContentfulProductToAdmin(productId) {
     const ignore = await this.shouldIgnore_(productId, "medusa")
     if (ignore) {
@@ -656,20 +742,34 @@ class ContentfulService extends BaseService {
       const environment = await this.getContentfulEnvironment_()
       const productEntry = await environment.getEntry(productId)
 
-      const product = await this.productService_.retrieve(productId)
+      const product = await this.productService_.retrieve(productId, {
+        select: [
+          "id",
+          "handle",
+          "title",
+          "subtitle",
+          "description",
+          "thumbnail",
+        ],
+      })
 
-      let update = {}
+      const update = {}
 
       const title =
-        productEntry.fields[this.getCustomField("title", "product")]["en-US"]
+        productEntry.fields[this.getCustomField("title", "product")]?.["en-US"]
 
       const subtitle =
-        productEntry.fields[this.getCustomField("subtitle", "product")]["en-US"]
-
-      const description =
-        productEntry.fields[this.getCustomField("description", "product")][
+        productEntry.fields[this.getCustomField("subtitle", "product")]?.[
           "en-US"
         ]
+
+      const description =
+        productEntry.fields[this.getCustomField("description", "product")]?.[
+          "en-US"
+        ]
+
+      const handle =
+        productEntry.fields[this.getCustomField("handle", "product")]?.["en-US"]
 
       if (product.title !== title) {
         update.title = title
@@ -683,6 +783,10 @@ class ContentfulService extends BaseService {
         update.description = description
       }
 
+      if (product.handle !== handle) {
+        update.handle = handle
+      }
+
       // Get the thumbnail, if present
       if (productEntry.fields.thumbnail) {
         const thumb = await environment.getAsset(
@@ -690,7 +794,7 @@ class ContentfulService extends BaseService {
         )
 
         if (thumb.fields.file["en-US"].url) {
-          if (!product.thumbnail.includes(thumb.fields.file["en-US"].url)) {
+          if (!product.thumbnail?.includes(thumb.fields.file["en-US"].url)) {
             update.thumbnail = thumb.fields.file["en-US"].url
           }
         }
@@ -741,14 +845,13 @@ class ContentfulService extends BaseService {
       isArray = false
     }
 
-    let output = []
+    const output = []
     for (const obj of input) {
-      let transformed = Object.assign({}, obj)
+      const transformed = Object.assign({}, obj)
       transformed.medusaId = obj.id
       output.push(transformed)
     }
 
-    console.log(output)
     if (!isArray) {
       return output[0]
     }
